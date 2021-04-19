@@ -3,25 +3,20 @@ from utils_code import util_zhang_new as util_zhang, tensor_board_utils as tbuti
 import numpy as np
 from tqdm import tqdm
 import os
-from U_CapsNets.TUCaN_v1_2 import CapsNet_MR
-from Zhang_github_N.training_layers import PriorBoostLayer, NNEncLayer, NonGrayMaskLayer
+from U_CapsNets.UCapsNet.py import CapsNet_MR
+from Colour_utils.training_layers import PriorBoostLayer, NNEncLayer, NonGrayMaskLayer
 from PIL import Image
 from utils_code.utils import save_checkpoint, rfolder, isnan, reconstruction_loss, resume_model
 import matplotlib.pyplot as plt
 import time
 from apex import amp    #<==AMP
-from tensorboardX import SummaryWriter
-#Parallelized training of Colorization U_CapsNet_Niki (forward training in self-supervision)
-path_r = 'Results_/RP_parallel_U_CapsNet_tiny_TinyImagenet/_100_4/BACKUP_model_log/checkpoint_RP_parallel_U_CapsNet_tiny_70.pth.tar'
-r, tb = False, False
 
-file_model_name = "RP_TUCaN_v1_2"
-print(file_model_name)
+
+file_model_name = "UCapsNet"
 db_used = 'Imagenet'
 CUDA =  'cuda:3'
 device = device(CUDA)
 batch_size, n_epochs, epoch_start, epoch_val, lr_G = 32, 100, 0, 5, 2e-5
-if tb: writer = SummaryWriter(f'runs/{file_model_name}')
 
 if db_used == 'Imagenet': dataloaders = util_zhang.load_Imagenet_dataset('/media/TBData3/Datasets/ImageNetOriginale', batch_size)
 if db_used == 'TinyImagenet':  dataloaders = util_zhang.load_dataset('/media/TBData3/Datasets/tiny-imagenet-200/train',
@@ -31,13 +26,7 @@ folder_results = rfolder("Results_/"+file_model_name+"_"+db_used, n_epochs)
 cuda.set_device(device)
 generator = CapsNet_MR(128).to(device)
 g_optimizer = optim.Adam(generator.parameters(), lr=0.0002)
-# g_optimizer = optim.Adam([{'params': generator.conv_layer.parameters(), 'lr': lr_G},
-#                 {'params': generator.primary_capsules.parameters(), 'lr': lr_G*10},
-#                 {'params': generator.digit_capsules.parameters(), 'lr': lr_G*10},
-#                 {'params': generator.reconstruction.parameters(), 'lr': lr_G},
-#             ])
 
-if r : generator, g_optimizer, epoch_start = resume_model(path_r, generator, g_optimizer, map_location=CUDA)
 generator, g_optimizer = amp.initialize(generator, g_optimizer, opt_level="O1")
 
 criterion = nn.CrossEntropyLoss().to(device)
@@ -58,6 +47,7 @@ log_loss_G = []
 with tqdm(total=n_epochs-epoch_start) as pbar:
     for epoch in range(epoch_start,n_epochs):
         log_loss = 0
+        generator.train()
         with cuda.amp.autocast(): #<==AMP
             for batch_id, (image_batch,target) in enumerate(dataloaders['train']):
                 img_ab_rs = image_batch[0]
@@ -91,22 +81,18 @@ with tqdm(total=n_epochs-epoch_start) as pbar:
             log_loss_G.append(log_loss/batch_id)
             #VALIDATION
             if epoch%epoch_val == 0:
+                generator.eval()
                 with no_grad():
                     img_l_rs_v = image_batch_val[1].to(device)
-                    if tb:
-                        writer.add_image('Colourisation',
-                                         tbutils.plot_colourisation(generator, img_l_rs_v, batch_size,folder_results,epoch),
-                                         global_step=len(dataloaders['train']) * epoch)
-                    else:
-                        img_ab_pred, _ = generator(img_l_rs_v)
-                        for j in range(batch_size):
-                            img_l_rs_v = img_l_rs_v.to(img_ab_pred.device)
-                            img_rgb = util_zhang.postprocess_tens(img_l_rs_v, img_ab_pred, j, mode='bilinear')
-                            im = Image.fromarray((img_rgb * 255).astype(np.uint8))
-                            if not os.path.exists(os.path.join(folder_results,str(epoch))):
-                                os.mkdir(os.path.join(folder_results,str(epoch)))
-                            im.save(os.path.join(folder_results,str(epoch), "val_" + str(j) + ".jpeg"))
-                        del img_ab_pred, img_rgb
+                    img_ab_pred, _ = generator(img_l_rs_v)
+                    for j in range(batch_size):
+                        img_l_rs_v = img_l_rs_v.to(img_ab_pred.device)
+                        img_rgb = util_zhang.postprocess_tens(img_l_rs_v, img_ab_pred, j, mode='bilinear')
+                        im = Image.fromarray((img_rgb * 255).astype(np.uint8))
+                        if not os.path.exists(os.path.join(folder_results,str(epoch))):
+                            os.mkdir(os.path.join(folder_results,str(epoch)))
+                        im.save(os.path.join(folder_results,str(epoch), "val_" + str(j) + ".jpeg"))
+                    del img_ab_pred, img_rgb
                 save_checkpoint({
                     'epoch': epoch + 1,
                     'loss_type': 'MSE',
@@ -119,10 +105,6 @@ with tqdm(total=n_epochs-epoch_start) as pbar:
             toc = time.time()
             pbar.set_description(("{:.1f}s - loss: {:.3f}".format((toc - tic), np.mean(log_loss_G))))
             pbar.update(1)
-            if tb:
-                writer.add_scalars('Loss',
-                                   {'G_loss': np.mean(log_loss_G)},
-                                   epoch * len(dataloaders['train']) + batch_id)
 
 save_checkpoint({
     'epoch': epoch + 1,
