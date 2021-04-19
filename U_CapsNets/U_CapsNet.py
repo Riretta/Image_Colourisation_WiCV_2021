@@ -1,6 +1,6 @@
 
 import torch.nn.functional as F
-from Zhang_github_N.base_color import *
+from Colour_utils.base_color import *
 import math
 import numpy as np
 
