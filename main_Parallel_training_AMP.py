@@ -3,7 +3,7 @@ from utils_code import util_zhang_new as util_zhang, tensor_board_utils as tbuti
 import numpy as np
 from tqdm import tqdm
 import os
-from U_CapsNets.UCapsNet.py import CapsNet_MR
+from U_CapsNets.U_CapsNet.py import CapsNet_MR
 from Colour_utils.training_layers import PriorBoostLayer, NNEncLayer, NonGrayMaskLayer
 from PIL import Image
 from utils_code.utils import save_checkpoint, rfolder, isnan, reconstruction_loss, resume_model
