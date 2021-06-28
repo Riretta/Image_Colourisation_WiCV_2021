@@ -84,7 +84,7 @@ class ValImageFolder(datasets.ImageFolder):
         img_scale = self.transform(img)
         target = target[-2] #torch.tensor(int(target[-2]))
 
-        return img_scale, target
+        return img_scale,index, target, name_file
 
     def __len__(self):
         return len(self.imgs)
