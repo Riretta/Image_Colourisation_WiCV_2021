@@ -3,7 +3,6 @@ import numpy as np
 from skimage import color
 import torch
 import torch.nn.functional as F
-# from Zhang_github.data_imagenet import ValImageFolder
 from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 from IPython import embed
@@ -99,19 +98,3 @@ def original_l(data,index):
 
     return tens_orig
 
-# def load_dataset(dataset_path, batch_size, resize=True):
-#     class RGB2LAB(object):
-#         def __init__(self):
-#             super(RGB2LAB, self).__init__()
-#
-#         def __call__(self, img):
-#             (tens_rs_ab, tens_rs_l, tens_rxs_ab) = preprocess_img(img, HW=(224, 224), resample=3,
-#                                                                              resize=False)
-#             return tens_rs_ab, tens_rs_l, tens_rxs_ab
-#
-#     original_transform = transforms.Compose([RGB2LAB()])
-#     ImageDataset = ValImageFolder(dataset_path,
-#                                   transform=original_transform)  # datasets.ImageNet(val_dir_name,split='train',transform=original_transform) #ValImageFolder(val_dir_name) #
-#     dataloaders = DataLoader(ImageDataset, batch_size=batch_size, shuffle=False)
-#
-#     return dataloaders
