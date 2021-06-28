@@ -41,21 +41,20 @@ def save_checkpoint(state, filename='checkpoint.pth.tar'):
     save(state, filename)
 
 
-def resume_model(name_file, model, optimizer, map_location):
+def resume_model(name_file, model, map_location):
     if os.path.isfile(name_file):
         print("=> loading checkpoint '{}'".format(name_file))
         checkpoint = load(name_file, map_location=map_location)
         # start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        # optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint '{}' (epoch {})"
               .format(name_file, checkpoint['epoch']))
         epoch = checkpoint['epoch']
     else:
         print("=> no checkpoint found at '{}'".format(name_file))
 
-    return model, optimizer, epoch
-
+    return model, epoch
 
 
 def load_image(image_tensor):
