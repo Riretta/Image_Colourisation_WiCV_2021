@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 from skimage.color import rgb2lab, lab2rgb
 import matplotlib.pyplot as plt
-from Zhang_github.base_color import BaseColor
+from Colour_utils.base_color import BaseColor
 
 
 def load_image(image_tensor):
