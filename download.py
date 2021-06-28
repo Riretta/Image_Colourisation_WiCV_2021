@@ -32,7 +32,7 @@ def download_file_from_google_drive(id, destination):
 
 
 # TAKE ID FROM SHAREABLE LINK
-file_id = '1gCXdQafYwPRuO7YRK0wrGyFkDXrhX2EG'
+file_id = '1EtGyoaWcTjkaOsAZcPZ3g62ATSG426jx'
 # DESTINATION FILE ON YOUR DISK
 destination = 'checkpoints.zip'
 download_file_from_google_drive(file_id, destination)
