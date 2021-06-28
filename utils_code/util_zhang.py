@@ -4,7 +4,7 @@ from skimage import color
 import torch
 import torch.nn.functional as F
 from IPython import embed
-from Zhang_github_N.data_imagenet import  ValImageFolder
+from Colour_utils.data_imagenet import  ValImageFolder
 from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
 
