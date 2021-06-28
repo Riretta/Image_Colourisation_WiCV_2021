@@ -3,25 +3,40 @@ import numpy as np
 from skimage import color
 import torch
 import torch.nn.functional as F
-from IPython import embed
-from Colour_utils.data_imagenet import  ValImageFolder
-from torch.utils.data import DataLoader
+# from Zhang_github.data_imagenet import ValImageFolder
 from torchvision import transforms, datasets
+from torch.utils.data import DataLoader
+from IPython import embed
+
 
 def load_img(img_path):
-    out_np = np.asarray(Image.open(img_path))
+    out_np = np.asarray(Image.open(img_path).convert('RGB'))
     if (out_np.ndim == 2):
         out_np = np.tile(out_np[:, :, None], 3)
     return out_np
 
 
 def resize_img(img, HW=(256, 256), resample=3):
-    return np.asarray(img.resize((HW[1], HW[0]), resample=resample)) #Image.fromarray(
+    # width, height = img.size  # Get dimensions
+    #
+    # left = (width - HW[1]) / 2
+    # top = (height - HW[0]) / 2
+    # right = (width + HW[1]) / 2
+    # bottom = (height + HW[0]) / 2
+    #
+    # # Crop the center of the image
+    # img = img.crop((left, top, right, bottom))
+    # return np.asarray(img)
+    return np.asarray(img.resize((HW[1], HW[0]), resample=resample))
 
 
-def preprocess_img(img_rgb_orig, HW=(256, 256), resample=3):
+
+def preprocess_img(img_rgb_orig, HW=(256, 256), resample=3, resize = True):
     # return original size L and resized L as torch Tensors
-    img_rgb_rs = resize_img(img_rgb_orig, HW=HW, resample=resample)
+    if resize: img_rgb_rs = resize_img(img_rgb_orig, HW=HW, resample=resample)
+    else: img_rgb_rs = np.asarray(img_rgb_orig)
+    if len(img_rgb_rs.shape) <3:
+        img_rgb_rs = np.stack((img_rgb_rs,)*3, axis=-1)
 
     img_lab_rs = color.rgb2lab(img_rgb_rs)
 
@@ -32,10 +47,32 @@ def preprocess_img(img_rgb_orig, HW=(256, 256), resample=3):
     tens_rs_l = torch.Tensor(img_l_rs)[None, :, :]
     tens_rxs_ab = F.interpolate(tens_rs_ab.unsqueeze(0), size=56).squeeze(0)
 
-    return (tens_rs_ab, tens_rs_l, tens_rxs_ab)
+    return (tens_rs_ab, tens_rs_l, tens_rxs_ab )
 
 
-def postprocess_tens(tens_orig_l, out_ab,j, mode='bilinear'):
+def postprocess_tens(tens_orig_l, out_ab,j, mode='bilinear',HW_request=[224,224]):
+    # tens_orig_l 	1 x 1 x H_orig x W_orig
+    # out_ab 		1 x 2 x H x W
+    HW_orig = tens_orig_l.shape[2:]
+    HW = out_ab.shape[2:]
+    batch = list(tens_orig_l.shape)[0]
+        #
+    # call resize function if needed
+    if (HW_orig[0] != HW[0] or HW_orig[1] != HW[1]) or (HW_orig[0] != HW_request[0] or HW_orig[1] != HW_request[1]):
+        HW_orig = HW_request
+        out_ab_orig = F.interpolate(out_ab, size=HW_orig, mode=mode)
+        tens_orig_l =  F.interpolate(tens_orig_l, size=HW_orig, mode=mode)
+    else:
+        out_ab_orig = out_ab
+
+    # out_lab_orig = torch.cat((tens_orig_l, out_ab_orig), dim=1)
+    if len(tens_orig_l.shape)>3 and int(batch) > 1: tens_orig_l = tens_orig_l[j,...]
+    if len(tens_orig_l.shape)>3 and int(batch) ==1: tens_orig_l = tens_orig_l.squeeze(0)
+    out_lab_orig = torch.cat((tens_orig_l, out_ab_orig[j, ...]), dim=0)
+    # return color.lab2rgb(out_lab_orig.data.cpu().numpy()[j, ...].transpose((1, 2, 0)))
+    return color.lab2rgb(out_lab_orig.data.cpu().numpy().transpose((1, 2, 0)))
+
+def postprocess_tens_old(tens_orig_l, out_ab,j, mode='bilinear'):
     # tens_orig_l 	1 x 1 x H_orig x W_orig
     # out_ab 		1 x 2 x H x W
 
@@ -51,41 +88,30 @@ def postprocess_tens(tens_orig_l, out_ab,j, mode='bilinear'):
     out_lab_orig = torch.cat((tens_orig_l, out_ab_orig), dim=1)
     return color.lab2rgb(out_lab_orig.data.cpu().numpy()[j, ...].transpose((1, 2, 0)))
 
-def load_dataset(dataset_path_train,dataset_path_val,batch_size):
-    class RGB2LAB(object):
-        def __init__(self):
-            super(RGB2LAB, self).__init__()
 
-        def __call__(self, img):
-            (tens_rs_ab, tens_rs_l, tens_rxs_ab) = preprocess_img(img, HW=(224, 224), resample=3)
-            return tens_rs_ab, tens_rs_l, tens_rxs_ab
+def original_l(data,index):
+    path, _ = data.imgs[index]
+    img = Image.open(path)
+    img_rgb_ = img.convert('RGB')
+    img_rgb_ = np.asarray(img_rgb_)
+    img_lab_ = color.rgb2lab(img_rgb_)
+    tens_orig = (torch.Tensor(img_lab_[:, :, 0])[None, :, :])
 
-    original_transform = transforms.Compose([RGB2LAB()])
+    return tens_orig
 
-    ImageDataset = {'train': ValImageFolder(dataset_path_train, transform=original_transform),
-                    # datasets.ImageNet(dataset_path,split='train',transform=original_transform),
-                    'val': ValImageFolder(dataset_path_val, transform=original_transform)}
-    dataloaders = {'train': DataLoader(ImageDataset['train'], batch_size=batch_size, shuffle=True, num_workers=4,
-                                       pin_memory=False),
-                   'val': DataLoader(ImageDataset['val'], batch_size=batch_size, shuffle=False, num_workers=4,
-                                     pin_memory=False)}
-    return dataloaders
-
-def load_Imagenet_dataset(dataset_path,batch_size):
-    class RGB2LAB(object):
-        def __init__(self):
-            super(RGB2LAB, self).__init__()
-
-        def __call__(self, img):
-            (tens_rs_ab, tens_rs_l, tens_rxs_ab) = preprocess_img(img, HW=(224, 224), resample=3)
-            return tens_rs_ab, tens_rs_l, tens_rxs_ab
-
-    original_transform = transforms.Compose([RGB2LAB()])
-
-    ImageDataset = {'train': datasets.ImageNet(dataset_path, split='train', transform=original_transform),
-                    'val': datasets.ImageNet(dataset_path, split='val', transform=original_transform)}
-    dataloaders = {'train': DataLoader(ImageDataset['train'], batch_size=batch_size, shuffle=False, num_workers=4,
-                                       pin_memory=False),
-                   'val': DataLoader(ImageDataset['val'], batch_size=batch_size, shuffle=False, num_workers=4,
-                                     pin_memory=False)}
-    return dataloaders
+# def load_dataset(dataset_path, batch_size, resize=True):
+#     class RGB2LAB(object):
+#         def __init__(self):
+#             super(RGB2LAB, self).__init__()
+#
+#         def __call__(self, img):
+#             (tens_rs_ab, tens_rs_l, tens_rxs_ab) = preprocess_img(img, HW=(224, 224), resample=3,
+#                                                                              resize=False)
+#             return tens_rs_ab, tens_rs_l, tens_rxs_ab
+#
+#     original_transform = transforms.Compose([RGB2LAB()])
+#     ImageDataset = ValImageFolder(dataset_path,
+#                                   transform=original_transform)  # datasets.ImageNet(val_dir_name,split='train',transform=original_transform) #ValImageFolder(val_dir_name) #
+#     dataloaders = DataLoader(ImageDataset, batch_size=batch_size, shuffle=False)
+#
+#     return dataloaders
