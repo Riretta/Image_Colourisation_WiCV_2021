@@ -10,8 +10,6 @@ import sklearn.neighbors as nn
 from skimage.transform import resize
 from skimage import color
 import torch
-import faiss
-
 
 class NNEncLayer(object):
     ''' Layer which encodes ab map into Q colors
@@ -20,7 +18,7 @@ class NNEncLayer(object):
     '''
 
     def __init__(self):
-        self.NN = 5
+        self.NN = 32
         self.sigma = 0.5
         self.ENC_DIR = './resources/'
         self.nnenc = NNEncode(self.NN, self.sigma, km_filepath=os.path.join(self.ENC_DIR, 'pts_in_hull.npy'))
@@ -127,7 +125,7 @@ class ClassRebalanceMultLayer(object):
 # ***** SUPPORT CLASSES *****
 # ***************************
 class PriorFactor():
-    ''' Class handles prior factor q*'''
+    ''' Class handles prior factor '''
 
     def __init__(self, alpha, gamma=0, verbose=True, priorFile=''):
         # INPUTS
@@ -199,17 +197,14 @@ class NNEncode():
         self.sigma = sigma
         self.nbrs = nn.NearestNeighbors(n_neighbors=NN, algorithm='ball_tree').fit(self.cc)
 
-        self.nbrs2 = faiss.IndexFlatL2(self.cc.shape[1])  # build the index
-        # print(index.is_trained)
-        self.nbrs2.add(self.cc.astype(np.single))  # add vectors to the index 32-bit
-        # print(index.ntotal)
-
         self.alreadyUsed = False
 
     def encode_points_mtx_nd(self, pts_nd, axis=1, returnSparse=False, sameBlock=True):
+        #print(pts_nd.shape)
         pts_flt = flatten_nd_array(pts_nd, axis=axis)
+        #print(pts_flt.shape)
+        #print("prima {} dopo {}".format(pts_nd.shape, pts_flt.shape))
         P = pts_flt.shape[0]
-        if self.alreadyUsed and not P == self.pts_enc_flt.shape[0]: self.alreadyUsed = False
         if (sameBlock and self.alreadyUsed):
             self.pts_enc_flt[...] = 0  # already pre-allocated
         else:
@@ -217,16 +212,17 @@ class NNEncode():
             self.pts_enc_flt = np.zeros((P, self.K))
             self.p_inds = np.arange(0, P, dtype='int')[:, na()]
 
-        # (dists, inds) = self.nbrs.kneighbors(pts_flt)
-        (dists, inds) = self.nbrs2.search(pts_flt.numpy(), self.NN)
-        dists = np.sqrt(dists)
+        P = pts_flt.shape[0]
 
+        (dists, inds) = self.nbrs.kneighbors(pts_flt)
+        #print(dists)
         wts = np.exp(-dists ** 2 / (2 * self.sigma ** 2))
         wts = wts / np.sum(wts, axis=1)[:, na()]
-
         self.pts_enc_flt[self.p_inds, inds] = wts
-
+        #print("WTS",wts)
+        
         pts_enc_nd = unflatten_2d_array(self.pts_enc_flt, pts_nd, axis=axis)
+        #print("fine ",pts_enc_nd.shape)    (2, 313, 56, 56)
         return pts_enc_nd
     
     def decode_points_mtx_nd(self,pts_enc_nd,axis=1):
@@ -361,7 +357,9 @@ def decode(data_l, conv8_313, folder,batch,epoch,rebalance=1):
 
 def decode_original(data_l, conv8_313, rebalance=1):
     data_l=data_l[0]+50
+    data_l= data_l.unsqueeze(0)
     data_l=data_l.cpu().data.numpy().transpose((1,2,0))
+    conv8_313 = conv8_313.unsqueeze(0)
     conv8_313 = conv8_313[0]  
     enc_dir = './resources'
     conv8_313_rh = conv8_313 * rebalance 
