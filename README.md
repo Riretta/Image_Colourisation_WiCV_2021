@@ -5,7 +5,7 @@ Image colourisation is an ill-posed problem, with multiple correct solutions whi
 
 We pose the problem as a classification task that can be addressed by a fully unsupervised approach, thus requires no human effort. Experimental results on three benchmark datasets show that our approach outperforms existing methods on standard quality metrics and achieves state-of-theart performances on image colourisation. A large scale user study shows that our method is preferred over existing solutions.
 
-##Architecture
+## Architecture
 
 <img src="TUCaN_noLoss.png" width=800 align=center>
 
